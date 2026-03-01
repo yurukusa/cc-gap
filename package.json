@@ -1,0 +1,26 @@
+{
+  "name": "cc-gap",
+  "version": "1.0.0",
+  "description": "How much time passes between your Claude Code sessions? Gap distribution and work rhythm analysis.",
+  "type": "module",
+  "bin": {
+    "cc-gap": "./cli.mjs"
+  },
+  "scripts": {
+    "start": "node cli.mjs"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "ai",
+    "session",
+    "productivity",
+    "analytics",
+    "cli"
+  ],
+  "author": "yurukusa",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

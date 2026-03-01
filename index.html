@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cc-gap — Time between your Claude Code sessions</title>
+<meta name="description" content="How long does your AI rest between sessions? Drop your ~/.claude folder to see the gap distribution and discover your work rhythm.">
+<meta property="og:title" content="cc-gap — Session gap analyzer for Claude Code">
+<meta property="og:description" content="From 11-second compaction restarts to 2-day breaks — see how long Claude Code rests between sessions.">
+<meta property="og:url" content="https://yurukusa.github.io/cc-gap/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@yurukusa_dev">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --muted: #8b949e;
+  --purple: #bc8cff; --cyan: #58d8f0; --yellow: #f7c948; --orange: #ffa657;
+  --blue: #58a6ff; --green: #56d364;
+}
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Consolas, monospace;
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; padding: 2rem 1rem;
+}
+.header { text-align: center; margin-bottom: 2rem; }
+.header h1 { font-size: 1.8rem; font-weight: 700; color: var(--cyan); margin-bottom: 0.5rem; }
+.header p { color: var(--muted); font-size: 0.9rem; }
+.drop-zone {
+  width: 100%; max-width: 600px; border: 2px dashed var(--border);
+  border-radius: 12px; padding: 3rem 2rem; text-align: center;
+  cursor: pointer; transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 2rem; background: var(--surface);
+}
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--cyan); background: #0f1f2a; }
+.drop-zone h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+.drop-zone p { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+.drop-zone .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+.drop-zone input[type="file"] { display: none; }
+#results { width: 100%; max-width: 700px; display: none; }
+.meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 1.5rem; text-align: center; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;
+}
+.card-title { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem; }
+.row {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.3rem; font-size: 0.78rem;
+}
+.row-label { color: var(--muted); min-width: 5.5rem; font-family: Consolas, monospace; }
+.bar-wrap { flex: 1; height: 14px; background: #21262d; border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.bar-fill.instant { background: var(--purple); }
+.bar-fill.quick   { background: var(--cyan); }
+.bar-fill.medium  { background: var(--yellow); }
+.bar-fill.long    { background: var(--orange); }
+.row-count { color: var(--muted); min-width: 5rem; text-align: right; font-family: Consolas, monospace; font-size: 0.75rem; }
+.score-card { text-align: center; }
+.cls-label { font-size: 1.5rem; font-weight: 700; color: var(--cyan); margin-bottom: 0.5rem; }
+.cls-desc  { font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; }
+.stats-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-top: 1rem;
+}
+@media (min-width: 480px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+.stat { text-align: center; }
+.stat .num { font-size: 1.2rem; font-weight: 700; display: block; }
+.stat .lbl { font-size: 0.7rem; color: var(--muted); }
+.footer { margin-top: 2rem; text-align: center; font-size: 0.8rem; color: var(--muted); }
+.footer a { color: var(--blue); text-decoration: none; margin: 0 0.5rem; }
+.btn {
+  background: var(--cyan); color: #0d1117; border: none;
+  border-radius: 6px; padding: 0.6rem 1.5rem; font-size: 0.9rem;
+  font-weight: 600; cursor: pointer; margin-top: 1rem; font-family: inherit;
+}
+.btn:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>cc-gap</h1>
+  <p>Time between your Claude Code sessions</p>
+</div>
+<div class="drop-zone" id="dropZone" onclick="document.getElementById('fi').click()">
+  <div class="icon">⏳</div>
+  <h2>Drop your .claude folder here</h2>
+  <p>Or click to select it.<br>Your data stays local — nothing is uploaded.</p>
+  <input type="file" id="fi" webkitdirectory multiple>
+  <button class="btn" onclick="event.stopPropagation(); document.getElementById('fi').click()">
+    Select ~/.claude folder
+  </button>
+</div>
+<div id="results">
+  <div class="meta" id="metaLine"></div>
+  <div class="card score-card" id="scoreCard"></div>
+  <div class="card">
+    <div class="card-title">Gap distribution (time between sessions)</div>
+    <div id="chart"></div>
+  </div>
+  <div class="footer">
+    <a href="https://github.com/yurukusa/cc-gap" target="_blank">GitHub</a> ·
+    <a href="https://yurukusa.github.io/cc-toolkit/" target="_blank">cc-toolkit (47 free tools)</a> ·
+    <span>Also: <code>npx cc-gap</code></span>
+  </div>
+</div>
+<div class="footer" id="footerMain">
+  <a href="https://github.com/yurukusa/cc-gap" target="_blank">GitHub</a> ·
+  <a href="https://yurukusa.github.io/cc-toolkit/" target="_blank">cc-toolkit</a> ·
+  <span>Part of 47 free tools for Claude Code</span>
+</div>
+<script>
+const dropZone = document.getElementById('dropZone');
+const fi = document.getElementById('fi');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); processFiles(Array.from(e.dataTransfer.files)); });
+fi.addEventListener('change', e => processFiles(Array.from(e.target.files)));
+
+const BUCKETS = [
+  { label: '< 1 min',  min: 0,    max: 1,       cls: 'instant' },
+  { label: '1–5 min',  min: 1,    max: 5,       cls: 'quick' },
+  { label: '5–30 min', min: 5,    max: 30,      cls: 'quick' },
+  { label: '30m–2h',   min: 30,   max: 120,     cls: 'medium' },
+  { label: '2–8 hr',   min: 120,  max: 480,     cls: 'medium' },
+  { label: '8–24 hr',  min: 480,  max: 1440,    cls: 'long' },
+  { label: '1–2 days', min: 1440, max: 2880,    cls: 'long' },
+  { label: '2–7 days', min: 2880, max: 10080,   cls: 'long' },
+  { label: '7+ days',  min: 10080,max: Infinity, cls: 'long' },
+];
+
+function fmtGap(min) {
+  if (min < 1) return `${Math.round(min * 60)}s`;
+  if (min < 60) return `${Math.round(min)}m`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  if (h < 24) return m ? `${h}h ${m}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh ? `${d}d ${rh}h` : `${d}d`;
+}
+
+function median(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function classify(med, pctInstant) {
+  if (pctInstant >= 0.5 || med < 2)
+    return { label: '⚡ Always On', desc: 'Your AI barely pauses. Instant restarts, continuous work.', color: 'var(--purple)' };
+  if (med < 30)
+    return { label: '🔄 Rapid Cycler', desc: 'Quick breaks between sessions. Fast iteration rhythm.', color: 'var(--cyan)' };
+  if (med < 240)
+    return { label: '⏸️ Steady Pauser', desc: 'Natural pauses between focused bursts.', color: 'var(--yellow)' };
+  if (med < 1440)
+    return { label: '🌙 Daily Worker', desc: 'Sessions cluster in work windows with overnight breaks.', color: 'var(--orange)' };
+  return { label: '📅 Weekend Coder', desc: 'Infrequent sessions with multi-day breaks between.', color: 'var(--orange)' };
+}
+
+async function processFiles(files) {
+  const sessionFiles = files.filter(f => {
+    const p = f.webkitRelativePath;
+    return p.endsWith('.jsonl') &&
+           p.includes('projects') &&
+           !p.includes('/subagents/');
+  });
+  if (!sessionFiles.length) {
+    alert('No session files found.\nSelect your .claude folder (not a subfolder).');
+    return;
+  }
+
+  const starts = [];
+  for (const f of sessionFiles) {
+    try {
+      const text = await f.slice(0, 4096).text();
+      for (const line of text.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const d = JSON.parse(line);
+          if (d.timestamp) { starts.push(new Date(d.timestamp)); break; }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  if (starts.length < 2) {
+    alert('Not enough sessions to compute gaps.');
+    return;
+  }
+
+  starts.sort((a, b) => a - b);
+  const gapsMin = [];
+  for (let i = 1; i < starts.length; i++) {
+    const g = (starts[i] - starts[i - 1]) / 60000;
+    if (g >= 0 && g < 365 * 24 * 60) gapsMin.push(g);
+  }
+
+  const sorted = [...gapsMin].sort((a, b) => a - b);
+  const total = sorted.length;
+  const med = median(sorted);
+  const avg = gapsMin.reduce((s, v) => s + v, 0) / total;
+  const maxVal = sorted[total - 1];
+  const p90 = sorted[Math.floor(total * 0.9)];
+  const pctInstant = sorted.filter(g => g < 1).length / total;
+
+  document.getElementById('metaLine').textContent = `${starts.length} sessions · ${total} gaps analyzed`;
+  dropZone.style.display = 'none';
+  document.getElementById('footerMain').style.display = 'none';
+  document.getElementById('results').style.display = 'block';
+
+  const bucketCounts = BUCKETS.map(b => ({
+    ...b,
+    count: sorted.filter(g => g >= b.min && g < b.max).length,
+  }));
+  const maxCount = Math.max(...bucketCounts.map(b => b.count), 1);
+
+  document.getElementById('chart').innerHTML = bucketCounts.map(b => {
+    const pct = (b.count / total * 100).toFixed(1);
+    const barPct = (b.count / maxCount * 100).toFixed(0);
+    return `<div class="row">
+      <span class="row-label">${b.label}</span>
+      <div class="bar-wrap"><div class="bar-fill ${b.cls}" style="width:${barPct}%"></div></div>
+      <span class="row-count">${b.count} (${pct}%)</span>
+    </div>`;
+  }).join('');
+
+  const cls = classify(med, pctInstant);
+  document.getElementById('scoreCard').innerHTML = `
+    <div class="card-title">Work rhythm</div>
+    <div class="cls-label" style="color:${cls.color}">${cls.label}</div>
+    <div class="cls-desc">${cls.desc}</div>
+    <div class="stats-grid">
+      <div class="stat"><span class="num" style="color:${cls.color}">${fmtGap(med)}</span><span class="lbl">median gap</span></div>
+      <div class="stat"><span class="num">${fmtGap(avg)}</span><span class="lbl">mean gap</span></div>
+      <div class="stat"><span class="num" style="color:var(--orange)">${fmtGap(maxVal)}</span><span class="lbl">longest gap</span></div>
+      <div class="stat"><span class="num">${(pctInstant * 100).toFixed(1)}%</span><span class="lbl">< 1 min (compact)</span></div>
+    </div>`;
+}
+</script>
+</body>
+</html>
