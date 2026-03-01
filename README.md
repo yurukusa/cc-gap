@@ -64,7 +64,7 @@ npx cc-gap --json      # JSON output for dashboards
 
 ## Part of cc-toolkit
 
-cc-gap is tool #47 in [cc-toolkit](https://yurukusa.github.io/cc-toolkit/) — 47 free tools for Claude Code users.
+cc-gap is tool #47 in [cc-toolkit](https://yurukusa.github.io/cc-toolkit/) — 49 free tools for Claude Code users.
 
 Related tools:
 - [cc-session-length](https://github.com/yurukusa/cc-session-length) — How long do sessions last?
