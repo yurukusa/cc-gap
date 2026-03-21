@@ -22,5 +22,6 @@
   "license": "MIT",
   "engines": {
     "node": ">=18"
-  }
+  },
+  "homepage": "https://github.com/yurukusa/cc-gap#readme"
 }
